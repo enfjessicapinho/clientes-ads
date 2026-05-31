@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastro de Campanha</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#f0f4f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#fff;border-radius:16px;padding:32px;width:100%;max-width:480px;box-shadow:0 4px 24px rgba(0,0,0,0.08)}
+h1{font-size:22px;color:#1a1a1a;margin-bottom:8px}
+p{color:#666;font-size:14px;margin-bottom:24px}
+label{display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:6px;margin-top:16px}
+input,select{width:100%;padding:12px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;outline:none;transition:border 0.2s}
+input:focus,select:focus{border-color:#25d366}
+.cidade-wrapper{position:relative}
+#resultados{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #ddd;border-top:none;border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto;z-index:10;display:none}
+.resultado-item{padding:10px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid #f0f0f0}
+.resultado-item:hover{background:#f0faf4}
+.resultado-item span{font-size:12px;color:#888;margin-left:6px}
+#cidade-selecionada{margin-top:8px;font-size:13px;color:#25d366;font-weight:600;display:none}
+.btn{width:100%;padding:16px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-top:24px;display:flex;align-items:center;justify-content:center;gap:10px}
+.btn:hover{background:#1da855}
+.btn:disabled{background:#aaa;cursor:not-allowed}
+.sucesso{display:none;text-align:center;padding:24px}
+.sucesso h2{color:#25d366;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="formulario">
+    <h1>Cadastro de Campanha</h1>
+    <p>Preencha os dados abaixo para configurar sua campanha.</p>
+
+    <label>Seu nome</label>
+    <input type="text" id="nome" placeholder="Ex: Maria Silva">
+
+    <label>WhatsApp (com DDD)</label>
+    <input type="tel" id="whatsapp" placeholder="Ex: 81999999999">
+
+    <label>Cidade para anunciar</label>
+    <div class="cidade-wrapper">
+      <input type="text" id="cidade-input" placeholder="Digite o nome da cidade..." autocomplete="off">
+      <div id="resultados"></div>
+    </div>
+    <div id="cidade-selecionada">✓ <span id="cidade-nome"></span></div>
+
+    <label>Dias contratados</label>
+    <select id="dias">
+      <option value="">Selecione...</option>
+      <option value="1">1 dia</option>
+      <option value="3">3 dias</option>
+      <option value="5">5 dias</option>
+    </select>
+
+    <button class="btn" id="btn-enviar" onclick="enviar()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      Enviar
+    </button>
+  </div>
+
+  <div class="sucesso" id="sucesso">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="#25d366"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+    <h2>Cadastro enviado!</h2>
+    <p>Sua campanha será criada em instantes.</p>
+  </div>
+</div>
+
+<script>
+const WEBHOOK = 'https://hook.us2.make.com/3zsj99sbxd3euv8dga5f1a3h1qvfw278';
+const TOKEN = 'EAGGnZCPWMRS4BRp71ZAzOZCZBxaIcGeKvP3YfeLch4i9XGXmZAVLN4pKDDEZAuCtoPvmcHXCj14UHyjKtHFPubqlr67AHP4Rf1S3EgwlAz9N6Jifpts6heZCtMgOSyvg4g9XwjtMjAd9mhWXMn715ixf9288TWWnYY8hFcWjbPMPGOY9JtRTuy9sWJRRsTd';
+let cidadeSelecionada = null;
+let timer = null;
+
+document.getElementById('cidade-input').addEventListener('input', function(){
+  clearTimeout(timer);
+  const q = this.value.trim();
+  if(q.length < 2){ document.getElementById('resultados').style.display='none'; return; }
+  timer = setTimeout(() => buscarCidades(q), 400);
+});
+
+async function buscarCidades(q){
+  try{
+    const url = `https://graph.facebook.com/v19.0/search?type=adgeolocation&q=${encodeURIComponent(q)}&location_types=["city"]&country_code=BR&access_token=${TOKEN}`;
+    const r = await fetch(url);
+    const d = await r.json();
+    const div = document.getElementById('resultados');
+    if(!d.data || d.data.length === 0){ div.style.display='none'; return; }
+    const cidades = d.data.filter(x => x.type === 'city').slice(0, 6);
+    if(cidades.length === 0){ div.style.display='none'; return; }
+    div.innerHTML = cidades.map(c => `<div class="resultado-item" onclick="selecionarCidade('${c.key}','${c.name}','${c.region}')"><strong>${c.name}</strong><span>${c.region}</span></div>`).join('');
+    div.style.display='block';
+  }catch(e){ console.error(e); }
+}
+
+function selecionarCidade(key, nome, estado){
+  cidadeSelecionada = {key, nome, estado};
+  document.getElementById('cidade-input').value = nome + ' - ' + estado;
+  document.getElementById('resultados').style.display='none';
+  document.getElementById('cidade-nome').textContent = nome + ' - ' + estado;
+  document.getElementById('cidade-selecionada').style.display='block';
+}
+
+async function enviar(){
+  const nome = document.getElementById('nome').value.trim();
+  const whatsapp = document.getElementById('whatsapp').value.trim().replace(/\D/g,'');
+  const dias = document.getElementById('dias').value;
+
+  if(!nome || !whatsapp || !cidadeSelecionada || !dias){
+    alert('Por favor, preencha todos os campos!');
+    return;
+  }
+
+  const btn = document.getElementById('btn-enviar');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  try{
+    await fetch(WEBHOOK, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        nome,
+        whatsapp: '55' + whatsapp,
+        cidade_key: cidadeSelecionada.key,
+        cidade_nome: cidadeSelecionada.nome,
+        estado: cidadeSelecionada.estado,
+        dias
+      })
+    });
+    document.getElementById('formulario').style.display='none';
+    document.getElementById('sucesso').style.display='block';
+  }catch(e){
+    alert('Erro ao enviar. Tente novamente.');
+    btn.disabled = false;
+    btn.textContent = 'Enviar';
+  }
+}
+
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.cidade-wrapper')){
+    document.getElementById('resultados').style.display='none';
+  }
+});
+</script>
+</body>
+</html>
