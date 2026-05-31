@@ -11,6 +11,7 @@ body{font-family:Arial,sans-serif;background:#f0f4f8;min-height:100vh;display:fl
 h1{font-size:22px;color:#1a1a1a;margin-bottom:8px}
 p{color:#666;font-size:14px;margin-bottom:24px}
 label{display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:6px;margin-top:16px}
+.hint{font-size:12px;color:#888;margin-bottom:6px;margin-top:-4px}
 input,select{width:100%;padding:12px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;outline:none;transition:border 0.2s}
 input:focus,select:focus{border-color:#25d366}
 .cidade-wrapper{position:relative}
@@ -18,7 +19,9 @@ input:focus,select:focus{border-color:#25d366}
 .resultado-item{padding:10px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid #f0f0f0}
 .resultado-item:hover{background:#f0faf4}
 .resultado-item span{font-size:12px;color:#888;margin-left:6px}
-#cidade-selecionada{margin-top:8px;font-size:13px;color:#25d366;font-weight:600;display:none}
+.cidades-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.tag{background:#e8f9f0;color:#1a7a4a;padding:6px 12px;border-radius:20px;font-size:13px;display:flex;align-items:center;gap:6px}
+.tag button{background:none;border:none;color:#1a7a4a;cursor:pointer;font-size:15px;line-height:1;padding:0}
 .btn{width:100%;padding:16px;background:#25d366;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-top:24px;display:flex;align-items:center;justify-content:center;gap:10px}
 .btn:hover{background:#1da855}
 .btn:disabled{background:#aaa;cursor:not-allowed}
@@ -35,15 +38,16 @@ input:focus,select:focus{border-color:#25d366}
     <label>Seu nome</label>
     <input type="text" id="nome" placeholder="Ex: Maria Silva">
 
-    <label>WhatsApp (com DDD)</label>
+    <label>WhatsApp com DDD que você deseja receber seus contatos</label>
     <input type="tel" id="whatsapp" placeholder="Ex: 81999999999">
 
-    <label>Cidade para anunciar</label>
+    <label>Selecione a cidade ou cidades que você quer anunciar</label>
+    <p class="hint">Digite o nome de uma cidade, selecione e repita para adicionar mais cidades.</p>
     <div class="cidade-wrapper">
       <input type="text" id="cidade-input" placeholder="Digite o nome da cidade..." autocomplete="off">
       <div id="resultados"></div>
     </div>
-    <div id="cidade-selecionada">✓ <span id="cidade-nome"></span></div>
+    <div class="cidades-tags" id="cidades-tags"></div>
 
     <label>Dias contratados</label>
     <select id="dias">
@@ -69,7 +73,7 @@ input:focus,select:focus{border-color:#25d366}
 <script>
 const WEBHOOK = 'https://hook.us2.make.com/3zsj99sbxd3euv8dga5f1a3h1qvfw278';
 const TOKEN = 'EAGGnZCPWMRS4BRp71ZAzOZCZBxaIcGeKvP3YfeLch4i9XGXmZAVLN4pKDDEZAuCtoPvmcHXCj14UHyjKtHFPubqlr67AHP4Rf1S3EgwlAz9N6Jifpts6heZCtMgOSyvg4g9XwjtMjAd9mhWXMn715ixf9288TWWnYY8hFcWjbPMPGOY9JtRTuy9sWJRRsTd';
-let cidadeSelecionada = null;
+let cidades = [];
 let timer = null;
 
 document.getElementById('cidade-input').addEventListener('input', function(){
@@ -86,19 +90,34 @@ async function buscarCidades(q){
     const d = await r.json();
     const div = document.getElementById('resultados');
     if(!d.data || d.data.length === 0){ div.style.display='none'; return; }
-    const cidades = d.data.filter(x => x.type === 'city').slice(0, 6);
-    if(cidades.length === 0){ div.style.display='none'; return; }
-    div.innerHTML = cidades.map(c => `<div class="resultado-item" onclick="selecionarCidade('${c.key}','${c.name}','${c.region}')"><strong>${c.name}</strong><span>${c.region}</span></div>`).join('');
+    const lista = d.data.filter(x => x.type === 'city').slice(0, 6);
+    if(lista.length === 0){ div.style.display='none'; return; }
+    div.innerHTML = lista.map(c => `<div class="resultado-item" onclick="adicionarCidade('${c.key}','${c.name}','${c.region}')"><strong>${c.name}</strong><span>${c.region}</span></div>`).join('');
     div.style.display='block';
   }catch(e){ console.error(e); }
 }
 
-function selecionarCidade(key, nome, estado){
-  cidadeSelecionada = {key, nome, estado};
-  document.getElementById('cidade-input').value = nome + ' - ' + estado;
+function adicionarCidade(key, nome, estado){
+  if(cidades.find(c => c.key === key)) return;
+  cidades.push({key, nome, estado});
+  document.getElementById('cidade-input').value = '';
   document.getElementById('resultados').style.display='none';
-  document.getElementById('cidade-nome').textContent = nome + ' - ' + estado;
-  document.getElementById('cidade-selecionada').style.display='block';
+  renderTags();
+}
+
+function removerCidade(key){
+  cidades = cidades.filter(c => c.key !== key);
+  renderTags();
+}
+
+function renderTags(){
+  const div = document.getElementById('cidades-tags');
+  div.innerHTML = cidades.map(c => `
+    <div class="tag">
+      ${c.nome} - ${c.estado}
+      <button onclick="removerCidade('${c.key}')" title="Remover">×</button>
+    </div>
+  `).join('');
 }
 
 async function enviar(){
@@ -106,8 +125,8 @@ async function enviar(){
   const whatsapp = document.getElementById('whatsapp').value.trim().replace(/\D/g,'');
   const dias = document.getElementById('dias').value;
 
-  if(!nome || !whatsapp || !cidadeSelecionada || !dias){
-    alert('Por favor, preencha todos os campos!');
+  if(!nome || !whatsapp || cidades.length === 0 || !dias){
+    alert('Por favor, preencha todos os campos e selecione ao menos uma cidade!');
     return;
   }
 
@@ -122,9 +141,7 @@ async function enviar(){
       body: JSON.stringify({
         nome,
         whatsapp: '55' + whatsapp,
-        cidade_key: cidadeSelecionada.key,
-        cidade_nome: cidadeSelecionada.nome,
-        estado: cidadeSelecionada.estado,
+        cidades,
         dias
       })
     });
